@@ -82,7 +82,7 @@ namespace FFImageLoading.Work
 			{
 				// Assign the Drawable to the image
 				var drawable = new AsyncDrawable(Context.Resources, null, this);
-				await MainThreadDispatcher.PostAsync(() => _target.Set(this, drawable, true, true)).ConfigureAwait(false);
+                SetTarget(drawable, true, true);
 			}
 
 			return false;
@@ -136,16 +136,12 @@ namespace FFImageLoading.Work
 				if (IsCancelled)
 					return GenerateResult.Canceled;
 
-				// Post on main thread
-				await MainThreadDispatcher.PostAsync(() =>
-					{
-						_target.Set(this, drawableWithResult.Item, drawableWithResult.Result.IsLocalOrCachedResult(), false);
-						Completed = true;
-						Parameters?.OnSuccess(drawableWithResult.ImageInformation, drawableWithResult.Result);
-					}).ConfigureAwait(false);
+                Completed = true;
 
-				if (!Completed)
-					return GenerateResult.Failed;
+                // Post on main thread
+                SetTarget(drawableWithResult.Item, drawableWithResult.Result.IsLocalOrCachedResult(), false);
+
+                Parameters?.OnSuccess(drawableWithResult.ImageInformation, drawableWithResult.Result);
 			}
 			catch (Exception ex2)
 			{
@@ -193,25 +189,15 @@ namespace FFImageLoading.Work
 				try
 				{
 					Logger.Debug(string.Format("Image from cache: {0}", key));
-					await MainThreadDispatcher.PostAsync(() =>
+                    Completed = true;
+                    SetTarget(value, true, false, () =>
 						{
-							if (IsCancelled)
-								return;
-
 							var ffDrawable = value as FFBitmapDrawable;
 							if (ffDrawable != null)
 								ffDrawable.StopFadeAnimation();
+                        });
 
-							_target.Set(this, value, true, false);
-
-							Completed = true;
-
-							Parameters?.OnSuccess(cacheEntry.Item2, LoadingResult.MemoryCache);
-						}).ConfigureAwait(false);
-
-					if (!Completed)
-						return CacheResult.NotFound; // not sure what to return in that case
-
+                    Parameters?.OnSuccess(cacheEntry.Item2, LoadingResult.MemoryCache);
 					return CacheResult.Found; // found and loaded from cache
 				}
 				finally
@@ -261,17 +247,12 @@ namespace FFImageLoading.Work
 				if (IsCancelled)
 					return GenerateResult.Canceled;
 
-				// Post on main thread
-				await MainThreadDispatcher.PostAsync(() =>
-					{
-						_target.Set(this, resultWithDrawable.Item, true, false);
-						
-						Completed = true;
-						Parameters?.OnSuccess(resultWithDrawable.ImageInformation, resultWithDrawable.Result);
-					}).ConfigureAwait(false);
+                Completed = true;
 
-				if (!Completed)
-					return GenerateResult.Failed;
+                // Post on main thread
+                SetTarget(resultWithDrawable.Item, true, false);
+
+                Parameters?.OnSuccess(resultWithDrawable.ImageInformation, resultWithDrawable.Result);
 			}
 			catch (Exception ex2)
 			{
@@ -559,7 +540,8 @@ namespace FFImageLoading.Work
 			{
 				// Here we asynchronously load our placeholder: it is deferred so we need a temporary AsyncDrawable
 				drawable = new AsyncDrawable(Context.Resources, null, this);
-				await MainThreadDispatcher.PostAsync(() => _target.Set(this, drawable, true, isLoadingPlaceholder)).ConfigureAwait(false); // temporary assign this AsyncDrawable
+
+                SetTarget(drawable, true, isLoadingPlaceholder); // temporary assign this AsyncDrawable
 
 				try
 				{
@@ -582,9 +564,8 @@ namespace FFImageLoading.Work
 			if (IsCancelled)
 				return false;
 
-			await MainThreadDispatcher.PostAsync(() => _target.Set(this, drawable, isLocalOrFromCache, isLoadingPlaceholder)).ConfigureAwait(false);
-
-			return true;
+            SetTarget(drawable, isLocalOrFromCache, isLoadingPlaceholder);
+            return true;
 		}
 
 		private async Task<WithLoadingResult<Stream>> GetStreamAsync(string path, ImageSource source)
@@ -701,5 +682,19 @@ namespace FFImageLoading.Work
 				}
 			}
 		}
+
+        private void SetTarget(BitmapDrawable drawable, bool isLocalOrFromCache, bool isLoadingPlaceholder, Action pre = null)
+        {
+            MainThreadBatcher.Instance.Add(() =>
+            {
+                if (IsCancelled)
+                    return;
+
+                if (pre != null)
+                    pre();
+
+                _target.Set(this, drawable, isLocalOrFromCache, isLoadingPlaceholder);
+            });
+        }
 	}
 }

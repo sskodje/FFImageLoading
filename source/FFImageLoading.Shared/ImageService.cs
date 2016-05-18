@@ -95,7 +95,7 @@ namespace FFImageLoading
 				if (_initialized)
 					return;
 
-				if (userDefinedConfig == null)
+                if (userDefinedConfig == null)
 					userDefinedConfig = new Configuration();
 
 				var httpClient = userDefinedConfig.HttpClient ?? new HttpClient();
@@ -118,7 +118,9 @@ namespace FFImageLoading
 
 				Config = userDefinedConfig;
 
-				_initialized = true;
+                MainThreadBatcher.CreateInstance(MainThreadDispatcher.Instance, logger);
+
+                _initialized = true;
 			}
         }
 
