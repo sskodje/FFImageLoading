@@ -683,17 +683,22 @@ namespace FFImageLoading.Work
 			}
 		}
 
-        private void SetTarget(BitmapDrawable drawable, bool isLocalOrFromCache, bool isLoadingPlaceholder, Action pre = null)
+        private void SetTarget(BitmapDrawable drawable, bool isLocalOrFromCache, bool isLoadingPlaceholder, Action pre = null, Action post = null)
         {
+            var source = this;
+            var target = _target;
             MainThreadBatcher.Instance.Add(() =>
             {
-                if (IsCancelled)
+                if (source.IsCancelled)
                     return;
 
                 if (pre != null)
                     pre();
 
-                _target.Set(this, drawable, isLocalOrFromCache, isLoadingPlaceholder);
+                target.Set(source, drawable, isLocalOrFromCache, isLoadingPlaceholder);
+
+                if (post != null)
+                    post();
             });
         }
 	}
