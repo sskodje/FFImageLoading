@@ -160,7 +160,7 @@ namespace FFImageLoading.Work
 		{
 			try
 			{
-				if (!_target.IsTaskValid(this))
+				if (!_target.IsValid)
 					return CacheResult.NotFound; // weird situation, dunno what to do
 
 				if (IsCancelled)
