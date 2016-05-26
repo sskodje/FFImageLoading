@@ -12,16 +12,18 @@ namespace FFImageLoading.Helpers
         private const int DELAY = 100;
         private readonly IMainThreadDispatcher _dispatcher;
         private readonly IMiniLogger _logger;
-        private readonly List<Action> _queue;
-        private readonly object _mutex;
+        private readonly Queue<Action> _queue;
+        private readonly SemaphoreSlim _mutex;
+        private Task _currentPoll;
+        private bool _pollInProgress;
 
         private MainThreadBatcher(IMainThreadDispatcher dispatcher, IMiniLogger logger)
         {
-            _queue = new List<Action>();
-            _mutex = new object();
+            _queue = new Queue<Action>();
+            _mutex = new SemaphoreSlim(1);
             _dispatcher = dispatcher;
             _logger = logger;
-            Initialize();
+            _currentPoll = Task.FromResult<byte>(1);
         }
 
         private static object _mutexInstance = new object();
@@ -48,43 +50,86 @@ namespace FFImageLoading.Helpers
             }
         }
 
-        public void Add(Action mainThreadAction)
+        public async Task AddAsync(Action mainThreadAction)
         {
-            lock (_mutex)
+            await _mutex.WaitAsync().ConfigureAwait(false);
+            try
             {
-                _queue.Add(mainThreadAction);
-            }
-        }
+                _queue.Enqueue(mainThreadAction);
 
-        private async void Initialize()
-        {
-            await PollAsync().ConfigureAwait(false);
+                if (!_pollInProgress)
+                {
+                    _currentPoll = PollAsync();
+                }
+            }
+            finally
+            {
+                _mutex.Release();
+            }
+
+            await _currentPoll.ConfigureAwait(false);
         }
 
         private async Task PollAsync()
         {
-            await Task.Delay(100).ConfigureAwait(false);
-            List<Action> actions;
-            lock (_mutex)
+            await _mutex.WaitAsync().ConfigureAwait(false);
+            try
             {
-                actions = _queue.ToList();
-                _queue.Clear();
+                _pollInProgress = true;
+            }
+            finally
+            {
+                _mutex.Release();
             }
 
-            if (actions.Count > 0)
+            await Task.Delay(DELAY).ConfigureAwait(false);
+
+            List<Action> actions;
+            await _mutex.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (_queue.Count == 0)
+                {
+                    _pollInProgress = false;
+                    return;
+                }
+
+                actions = new List<Action>(_queue.Count);
+                while (_queue.Count > 0)
+                {
+                    actions.Add(_queue.Dequeue());
+                }
+            }
+            finally
+            {
+                _mutex.Release();
+            }
+
+            try
             {
                 await _dispatcher.PostAsync(() =>
-                {
-                    foreach (var action in actions)
                     {
-                        action();
-                    }
-                }).ConfigureAwait(false);
-
-                _logger.Debug(string.Format("Batched {0} actions to main thread.", actions.Count));
+                        foreach (var action in actions)
+                        {
+                            try
+                            {
+                                action();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Error("Error while batching an action to main thread.", ex);
+                            }
+                        }
+                    }).ConfigureAwait(false);
+            }
+            finally
+            {
+                await _mutex.WaitAsync().ConfigureAwait(false);
+                _pollInProgress = false;
+                _mutex.Release();
             }
 
-            await PollAsync().ConfigureAwait(false);
+            _logger.Debug(string.Format("Batched {0} actions to main thread.", actions.Count));
         }
     }
 }

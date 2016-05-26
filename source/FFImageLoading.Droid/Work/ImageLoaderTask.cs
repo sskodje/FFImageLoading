@@ -82,7 +82,7 @@ namespace FFImageLoading.Work
 			{
 				// Assign the Drawable to the image
 				var drawable = new AsyncDrawable(Context.Resources, null, this);
-                SetTarget(drawable, true, true);
+				await SetTargetAsync(drawable, true, true).ConfigureAwait(false);
 			}
 
 			return false;
@@ -136,12 +136,16 @@ namespace FFImageLoading.Work
 				if (IsCancelled)
 					return GenerateResult.Canceled;
 
-                Completed = true;
+				// Post on main thread
+				await SetTargetAsync(drawableWithResult.Item, drawableWithResult.Result.IsLocalOrCachedResult(), false,
+                                     post: () =>
+                    {
+                        Completed = true;
+						Parameters?.OnSuccess(drawableWithResult.ImageInformation, drawableWithResult.Result);
+					}).ConfigureAwait(false);
 
-                // Post on main thread
-                SetTarget(drawableWithResult.Item, drawableWithResult.Result.IsLocalOrCachedResult(), false);
-
-                Parameters?.OnSuccess(drawableWithResult.ImageInformation, drawableWithResult.Result);
+				if (!Completed)
+					return GenerateResult.Failed;
 			}
 			catch (Exception ex2)
 			{
@@ -189,15 +193,25 @@ namespace FFImageLoading.Work
 				try
 				{
 					Logger.Debug(string.Format("Image from cache: {0}", key));
-                    Completed = true;
-                    SetTarget(value, true, false, () =>
-						{
-							var ffDrawable = value as FFBitmapDrawable;
-							if (ffDrawable != null)
-								ffDrawable.StopFadeAnimation();
-                        });
+                    await SetTargetAsync(value, true, false,
+                        pre: () =>
+                        {
+                            if (IsCancelled)
+                                return;
 
-                    Parameters?.OnSuccess(cacheEntry.Item2, LoadingResult.MemoryCache);
+                            var ffDrawable = value as FFBitmapDrawable;
+                            if (ffDrawable != null)
+                                ffDrawable.StopFadeAnimation();
+                        },
+                        post: () =>
+                        {
+                            Completed = true;
+                            Parameters?.OnSuccess(cacheEntry.Item2, LoadingResult.MemoryCache);
+                        }).ConfigureAwait(false);
+
+					if (!Completed)
+						return CacheResult.NotFound; // not sure what to return in that case
+
 					return CacheResult.Found; // found and loaded from cache
 				}
 				finally
@@ -247,12 +261,17 @@ namespace FFImageLoading.Work
 				if (IsCancelled)
 					return GenerateResult.Canceled;
 
-                Completed = true;
-
                 // Post on main thread
-                SetTarget(resultWithDrawable.Item, true, false);
+				await SetTargetAsync(resultWithDrawable.Item, true, false,
+                                     post: () =>
+                {
 
-                Parameters?.OnSuccess(resultWithDrawable.ImageInformation, resultWithDrawable.Result);
+                    Completed = true;
+                    Parameters?.OnSuccess(resultWithDrawable.ImageInformation, resultWithDrawable.Result);
+                }).ConfigureAwait(false);
+
+				if (!Completed)
+					return GenerateResult.Failed;
 			}
 			catch (Exception ex2)
 			{
@@ -542,8 +561,7 @@ namespace FFImageLoading.Work
 			{
 				// Here we asynchronously load our placeholder: it is deferred so we need a temporary AsyncDrawable
 				drawable = new AsyncDrawable(Context.Resources, null, this);
-
-                SetTarget(drawable, true, isLoadingPlaceholder); // temporary assign this AsyncDrawable
+				await SetTargetAsync(drawable, true, isLoadingPlaceholder).ConfigureAwait(false); // temporary assign this AsyncDrawable
 
 				try
 				{
@@ -566,7 +584,8 @@ namespace FFImageLoading.Work
 			if (IsCancelled)
 				return false;
 
-            SetTarget(drawable, isLocalOrFromCache, isLoadingPlaceholder);
+			await SetTargetAsync(drawable, isLocalOrFromCache, isLoadingPlaceholder).ConfigureAwait(false);
+
             return true;
 		}
 
@@ -685,11 +704,11 @@ namespace FFImageLoading.Work
 			}
 		}
 
-        private void SetTarget(BitmapDrawable drawable, bool isLocalOrFromCache, bool isLoadingPlaceholder, Action pre = null, Action post = null)
+        private async Task SetTargetAsync(BitmapDrawable drawable, bool isLocalOrFromCache, bool isLoadingPlaceholder, Action pre = null, Action post = null)
         {
             var source = this;
             var target = _target;
-            MainThreadBatcher.Instance.Add(() =>
+            await MainThreadBatcher.Instance.AddAsync(() =>
             {
                 if (source.IsCancelled)
                     return;
@@ -701,7 +720,7 @@ namespace FFImageLoading.Work
 
                 if (post != null)
                     post();
-            });
+            }).ConfigureAwait(false);
         }
 	}
 }
