@@ -206,7 +206,7 @@ namespace FFImageLoading
         /// <param name="exitTasksEarly">If set to <c>true</c> exit tasks early.</param>
         public void SetExitTasksEarly(bool exitTasksEarly)
         {
-            Scheduler.SetExitTasksEarlyAsync(exitTasksEarly);
+            Scheduler.SetExitTasksEarly(exitTasksEarly);
         }
 
         /// <summary>
@@ -215,7 +215,7 @@ namespace FFImageLoading
         /// <param name="pauseWork">If set to <c>true</c> pause/cancel work.</param>
         public void SetPauseWork(bool pauseWork)
         {
-            Scheduler.SetPauseWorkAsync(pauseWork);
+            Scheduler.SetPauseWork(pauseWork);
         }
 
         /// <summary>
@@ -233,7 +233,7 @@ namespace FFImageLoading
         /// <param name="task">Image loading task to remove.</param>
         public void RemovePendingTask(IImageLoaderTask task)
         {
-            Scheduler.RemovePendingTaskAsync(task);
+            Scheduler.RemovePendingTask(task);
         }
 
         /// <summary>
