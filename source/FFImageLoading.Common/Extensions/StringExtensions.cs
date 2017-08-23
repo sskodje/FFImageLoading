@@ -3,6 +3,7 @@ using System.Linq;
 
 namespace FFImageLoading
 {
+    [Preserve(AllMembers = true)]
     public static class StringExtensions
     {
         public static string ToSanitizedKey(this string key)
@@ -15,6 +16,19 @@ namespace FFImageLoading
         public static bool Contains(this string source, string toCheck, StringComparison comp)
         {
             return source.IndexOf(toCheck, comp) >= 0;
+        }
+
+        public static bool IsDataUrl(this string str)
+        {
+            return str.StartsWith("data:", StringComparison.OrdinalIgnoreCase) 
+                      || str.StartsWith("<", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsSvgDataUrl(this string str)
+        {
+            return str.StartsWith("data:image/svg", StringComparison.OrdinalIgnoreCase)
+                      || str.StartsWith("data:text", StringComparison.OrdinalIgnoreCase)
+                      || str.StartsWith("<", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

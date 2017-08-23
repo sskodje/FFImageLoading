@@ -13,6 +13,7 @@ using System.Reflection;
 
 namespace FFImageLoading
 {
+    [Preserve(AllMembers = true)]
     public interface IImageService
     {
 		/// <summary>
@@ -47,6 +48,21 @@ namespace FFImageLoading
         /// <param name="url">URL to the file</param>
         /// <param name="cacheDuration">How long the file will be cached on disk</param>
 		TaskParameter LoadUrl(string url, TimeSpan? cacheDuration = null);
+
+        /// <summary>
+        /// Loads the string.
+        /// </summary>
+        /// <returns>The string.</returns>
+        /// <param name="data">Data.</param>
+        /// <param name="encoding">Encoding.</param>
+        TaskParameter LoadString(string data, DataEncodingType encoding = DataEncodingType.RAW);
+
+        /// <summary>
+        /// Loads the base64 string.
+        /// </summary>
+        /// <returns>The base64 string.</returns>
+        /// <param name="data">Data.</param>
+        TaskParameter LoadBase64String(string data);
 
 		/// <summary>
 		/// Constructs a new TaskParameter to load an image from a file from application bundle.

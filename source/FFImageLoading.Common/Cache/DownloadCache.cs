@@ -6,9 +6,11 @@ using FFImageLoading.Helpers;
 using System.Threading;
 using FFImageLoading.Work;
 using FFImageLoading.Config;
+using System.Linq;
 
 namespace FFImageLoading.Cache
 {
+    [Preserve(AllMembers = true)]
     public class DownloadCache : IDownloadCache
     {
         public DownloadCache(Configuration configuration)
@@ -17,6 +19,8 @@ namespace FFImageLoading.Cache
         }
 
         const int BufferSize = 4096;
+
+        public string[] InvalidContentTypes { get; set; } = new[] { "text/html", "application/json", "audio/", "video/", "message" };
 
         protected Configuration Configuration { get; private set; }
 
@@ -103,6 +107,13 @@ namespace FFImageLoading.Cache
 
                             if (response.Content == null)
                                 throw new HttpRequestException("No Content");
+
+                            var mediaType = response.Content.Headers?.ContentType?.MediaType;
+                            if (!string.IsNullOrWhiteSpace(mediaType) && !mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (InvalidContentTypes.Any(v => mediaType.StartsWith(v, StringComparison.OrdinalIgnoreCase)))
+                                    throw new HttpRequestException($"Invalid response content type ({mediaType})");
+                            }
 
                             ModifyParametersAfterResponse(response, parameters);
 
