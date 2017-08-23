@@ -79,7 +79,10 @@ namespace FFImageLoading.Cache
             token.ThrowIfCancellationRequested();
             filePath = await configuration.DiskCache.GetFilePathAsync(filename).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            var memoryStream = new MemoryStream(responseBytes, false);
+            //var memoryStream = new MemoryStream(responseBytes, false);
+            var memoryStream = new MemoryStream();
+            memoryStream.Write(responseBytes, 0, responseBytes.Length);
+            memoryStream.Seek(0, SeekOrigin.Begin);
             return new CacheStream(memoryStream, false, filePath);
         }
 
